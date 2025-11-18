@@ -1,6 +1,27 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Music elements (optional; may not exist if page not fully loaded when script runs)
+const gameMusic = document.getElementById('gameMusic');
+const gameMusicToggle = document.getElementById('gameMusicToggle');
+let musicEnabled = false;
+
+if (gameMusicToggle) {
+    gameMusicToggle.addEventListener('click', function() {
+        // Toggle playback state
+        if (!gameMusic) return;
+        if (gameMusic.paused) {
+            gameMusic.play().catch(()=>{});
+            musicEnabled = true;
+            gameMusicToggle.textContent = 'Pause Music';
+        } else {
+            gameMusic.pause();
+            musicEnabled = false;
+            gameMusicToggle.textContent = 'Play Music';
+        }
+    });
+}
+
 // Bird properties
 const bird = {
     x: 50,
@@ -42,7 +63,7 @@ const pipes = [];
 const pipeSpeed = 2;
 
 function createPipe() {
-    const pipeHeight = Math.floor(Math.random() * (canvas.height - pipeGap - 100)) + 50; // Random height for the top pipe
+    const pipeHeight = Math.floor(Math.random() * (canvas.height - pipeGap - 100)) + 50;
     pipes.push({
         x: canvas.width,
         y: 0,
@@ -80,7 +101,7 @@ function updatePipes() {
     }
 
     // Generate new pipes
-    if (pipes.length === 0 || pipes[pipes.length - 2].x < canvas.width - 200) { // Ensure there's always a new pipe in sight
+    if (pipes.length === 0 || pipes[pipes.length - 2].x < canvas.width - 200) {
         createPipe();
     }
 }
@@ -123,53 +144,70 @@ document.addEventListener('keydown', function(event) {
     if (event.code === 'Space') {
         if (gameState === 'start') {
             gameState = 'playing';
+            // Start music when game begins if user enabled it previously
+            if (gameMusic && musicEnabled) {
+                gameMusic.currentTime = 0;
+                gameMusic.play().catch(()=>{});
+            }
             gameLoop();
         } else if (gameState === 'playing') {
             bird.flap();
         } else if (gameState === 'gameOver') {
             resetGame();
+            // Pause music on reset/game over
+            if (gameMusic) {
+                gameMusic.pause();
+            }
         }
     }
 });
 
-// Game loop placeholder
+// Game loop
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     bird.update();
     bird.draw();
-    updatePipes();
-    drawPipes();
-
-    if (checkCollision()) {
-        gameState = 'gameOver';
-    }
-
+    
     if (gameState === 'playing') {
+        updatePipes();
+        drawPipes();
+        
+        // Check for collisions
+        if (checkCollision()) {
+            gameState = 'gameOver';
+            // pause music on game over
+            if (gameMusic) {
+                gameMusic.pause();
+            }
+        }
+        
+        // Update score
+        for (let i = 0; i < pipes.length; i++) {
+            let p = pipes[i];
+            if (p.x + p.width < bird.x && !p.passed && p.y === 0) {
+                score++;
+                p.passed = true;
+                break;
+            }
+        }
+        
         requestAnimationFrame(gameLoop);
-    } else if (gameState === 'start') {
-        ctx.fillStyle = 'white';
-        ctx.font = '30px Arial';
+    }
+    
+    drawScore();
+    
+    // Draw game state messages
+    ctx.fillStyle = 'white';
+    ctx.font = '30px Arial';
+    if (gameState === 'start') {
         ctx.fillText('Press Space to Start', canvas.width / 2 - 140, canvas.height / 2);
     } else if (gameState === 'gameOver') {
-        ctx.fillStyle = 'white';
-        ctx.font = '30px Arial';
         ctx.fillText('Game Over!', canvas.width / 2 - 80, canvas.height / 2 - 30);
         ctx.fillText('Score: ' + score, canvas.width / 2 - 60, canvas.height / 2 + 10);
         ctx.fillText('Press Space to Restart', canvas.width / 2 - 140, canvas.height / 2 + 50);
     }
-
-    // Score update
-    for (let i = 0; i < pipes.length; i++) {
-        let p = pipes[i];
-        if (p.x + p.width < bird.x && !p.passed && p.y === 0) { // Only count for the top pipe of a pair
-            score++;
-            p.passed = true;
-            break; // Ensure score is only incremented once per pair
-        }
-    }
-    drawScore();
 }
 
-// Initial call to display start screen
+// Initial setup
 resetGame();
 gameLoop();
